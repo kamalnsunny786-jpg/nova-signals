@@ -3,13 +3,19 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "scan ya weekly (weekly = report abhi bhejo)"
+        default: "scan"
 concurrency:
   group: nova
   cancel-in-progress: false
+permissions:
+  contents: write
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,7 +23,14 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python nova_signals_bot.py --once
+      - run: python nova_signals_bot.py --once ${{ github.event.inputs.mode == 'weekly' && '--weekly' || '' }}
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      - name: Save data
+        if: always()
+        run: |
+          git config user.name "nova-bot"
+          git config user.email "nova-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || (git commit -m "data update" && git push)
